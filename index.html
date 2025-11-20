@@ -43,6 +43,13 @@
             </div>
 
             <div class="input-section">
+                <label>
+                    <input type="checkbox" id="use-pubmed" checked> Użyj artykułów naukowych z PubMed jako źródła
+                </label>
+                <small>AI będzie bazować na aktualnych badaniach naukowych z bazy PubMed</small>
+            </div>
+
+            <div class="input-section">
                 <label for="target-audience">Grupa docelowa:</label>
                 <select id="target-audience">
                     <option value="ogólna">Ogólna</option>
@@ -87,6 +94,13 @@
             </div>
 
             <div class="input-section">
+                <label>
+                    <input type="checkbox" id="prompt-use-pubmed" checked> Użyj artykułów naukowych z PubMed jako źródła
+                </label>
+                <small>Prompt będzie zawierał odniesienia do aktualnych badań naukowych</small>
+            </div>
+
+            <div class="input-section">
                 <label for="prompt-audience">Grupa docelowa:</label>
                 <select id="prompt-audience">
                     <option value="ogólna">Ogólna</option>
@@ -116,9 +130,34 @@
         <!-- Tryb Generowania Obrazów -->
         <div id="image-mode" class="mode-content">
             <div class="input-section">
-                <label for="image-description">Opis obrazu (co chcesz zobaczyć):</label>
-                <textarea id="image-description" rows="3" placeholder="np. szczupła kobieta ćwicząca na siłowni, profesjonalne zdjęcie, naturalne światło"></textarea>
-                <small>Opisz dokładnie, jaki obraz chcesz wygenerować. Im bardziej szczegółowy opis, tym lepszy efekt!</small>
+                <label>
+                    <input type="radio" name="image-source" id="generate-new" value="generate" checked> Generuj nowy obraz AI
+                </label>
+                <label style="margin-left: 20px;">
+                    <input type="radio" name="image-source" id="upload-existing" value="upload"> Wgraj własne zdjęcie
+                </label>
+            </div>
+
+            <div id="generate-section">
+                <div class="input-section">
+                    <label for="image-description">Opis obrazu (co chcesz zobaczyć):</label>
+                    <textarea id="image-description" rows="3" placeholder="np. szczupła kobieta ćwicząca na siłowni, profesjonalne zdjęcie, naturalne światło"></textarea>
+                    <small>Opisz dokładnie, jaki obraz chcesz wygenerować. Im bardziej szczegółowy opis, tym lepszy efekt!</small>
+                </div>
+            </div>
+
+            <div id="upload-section" style="display: none;">
+                <div class="input-section">
+                    <label for="image-upload">Wgraj swoje zdjęcie:</label>
+                    <input type="file" id="image-upload" accept="image/*" style="padding: 10px; border: 2px dashed #ddd; border-radius: 8px; width: 100%;">
+                    <small>Możesz wgrać zdjęcie z sesji biznesowej, które zostanie zmodyfikowane przez AI</small>
+                </div>
+                <div class="input-section">
+                    <label>
+                        <input type="checkbox" id="generate-similar"> Wygeneruj podobny obraz AI na podstawie zdjęcia
+                    </label>
+                    <small>AI przeanalizuje zdjęcie i wygeneruje podobny obraz (wymaga klucza API)</small>
+                </div>
             </div>
 
             <div class="input-section">

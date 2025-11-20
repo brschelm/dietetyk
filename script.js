@@ -152,6 +152,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Przełączanie między generowaniem a uploadem
+    const generateRadio = document.getElementById('generate-new');
+    const uploadRadio = document.getElementById('upload-existing');
+    const generateSection = document.getElementById('generate-section');
+    const uploadSection = document.getElementById('upload-section');
+    
+    if (generateRadio && uploadRadio && generateSection && uploadSection) {
+        generateRadio.addEventListener('change', function() {
+            if (this.checked) {
+                generateSection.style.display = 'block';
+                uploadSection.style.display = 'none';
+            }
+        });
+        
+        uploadRadio.addEventListener('change', function() {
+            if (this.checked) {
+                generateSection.style.display = 'none';
+                uploadSection.style.display = 'block';
+            }
+        });
+    }
+
+    // Upload zdjęcia
+    const imageUpload = document.getElementById('image-upload');
+    if (imageUpload) {
+        imageUpload.addEventListener('change', function(e) {
+            handleImageUpload(e.target.files[0]);
+        });
+    }
+
     // Generowanie obrazu
     const generateImageBtn = document.getElementById('generate-image-btn');
     let isGenerating = false; // Flaga zapobiegająca wielokrotnemu generowaniu
@@ -202,6 +232,74 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Inicjalizacja zakończona');
 });
 
+// Funkcja wyszukiwania w PubMed
+async function searchPubMed(topic) {
+    try {
+        // PubMed API - darmowe, nie wymaga klucza
+        const searchQuery = encodeURIComponent(topic + ' nutrition diet');
+        const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${searchQuery}&retmax=5&retmode=json`;
+        
+        console.log('Wyszukuję w PubMed:', searchQuery);
+        
+        const searchResponse = await fetch(url);
+        const searchData = await searchResponse.json();
+        
+        if (!searchData.esearchresult || !searchData.esearchresult.idlist || searchData.esearchresult.idlist.length === 0) {
+            console.log('Brak wyników w PubMed');
+            return null;
+        }
+        
+        const pmids = searchData.esearchresult.idlist.slice(0, 3); // Maksymalnie 3 artykuły
+        console.log('Znalezione artykuły PubMed:', pmids);
+        
+        // Pobierz szczegóły artykułów
+        const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${pmids.join(',')}&retmode=json`;
+        const fetchResponse = await fetch(fetchUrl);
+        const fetchData = await fetchResponse.json();
+        
+        // Pobierz abstrakty osobno (esummary czasami nie zwraca abstraktów)
+        const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmids.join(',')}&retmode=xml`;
+        let abstractsMap = {};
+        try {
+            const abstractResponse = await fetch(abstractUrl);
+            const abstractText = await abstractResponse.text();
+            // Parsuj XML aby wyciągnąć abstrakty (uproszczone)
+            pmids.forEach(pmid => {
+                const abstractMatch = abstractText.match(new RegExp(`<PubmedData>.*?<ArticleId IdType="pubmed">${pmid}</ArticleId>.*?<AbstractText[^>]*>(.*?)</AbstractText>`, 's'));
+                if (abstractMatch) {
+                    abstractsMap[pmid] = abstractMatch[1].replace(/<[^>]+>/g, '').trim();
+                }
+            });
+        } catch (e) {
+            console.log('Nie udało się pobrać abstraktów:', e);
+        }
+        
+        const articles = [];
+        if (fetchData.result && pmids) {
+            pmids.forEach(pmid => {
+                const article = fetchData.result[pmid];
+                if (article) {
+                    const authorsList = article.authors ? article.authors.map(a => a.name).join(', ') : '';
+                    articles.push({
+                        title: article.title || '',
+                        authors: authorsList,
+                        journal: article.source || '',
+                        year: article.pubdate ? article.pubdate.split(' ')[0] : '',
+                        pmid: pmid,
+                        abstract: abstractsMap[pmid] || article.abstract || ''
+                    });
+                }
+            });
+        }
+        
+        console.log('Pobrane artykuły:', articles);
+        return articles;
+    } catch (error) {
+        console.error('Błąd wyszukiwania PubMed:', error);
+        return null;
+    }
+}
+
 async function generateIdeas() {
     console.log('generateIdeas wywołane');
     
@@ -209,8 +307,9 @@ async function generateIdeas() {
     const topic = document.getElementById('topic').value;
     const audience = document.getElementById('target-audience').value;
     const tone = document.getElementById('tone').value;
+    const usePubMed = document.getElementById('use-pubmed')?.checked ?? true;
 
-    console.log('Wartości:', { contentType, topic, audience, tone, apiKey: apiKey ? 'jest' : 'brak' });
+    console.log('Wartości:', { contentType, topic, audience, tone, apiKey: apiKey ? 'jest' : 'brak', usePubMed });
 
     if (!topic || !topic.trim()) {
         alert('Proszę wpisać temat!');
@@ -239,9 +338,43 @@ async function generateIdeas() {
 
     loading.classList.remove('hidden');
     results.classList.add('hidden');
+    
+    // Aktualizuj tekst loading
+    if (loading.querySelector('p')) {
+        loading.querySelector('p').textContent = usePubMed ? 'Wyszukuję artykuły naukowe z PubMed...' : 'Generuję pomysły...';
+    }
 
     try {
-        const prompt = buildPrompt(contentType, topic, audience, tone);
+        let pubmedContext = '';
+        let pubmedReferences = '';
+        
+        // Wyszukaj artykuły w PubMed jeśli zaznaczone
+        if (usePubMed) {
+            const articles = await searchPubMed(topic);
+            if (articles && articles.length > 0) {
+                pubmedContext = '\n\nAktualne badania naukowe z PubMed:\n';
+                pubmedReferences = '\n\nŹródła naukowe:\n';
+                
+                articles.forEach((article, index) => {
+                    pubmedContext += `${index + 1}. ${article.title}\n`;
+                    if (article.abstract) {
+                        pubmedContext += `   Streszczenie: ${article.abstract.substring(0, 200)}...\n`;
+                    }
+                    pubmedContext += `   Autorzy: ${article.authors}\n`;
+                    pubmedContext += `   Czasopismo: ${article.journal} (${article.year})\n\n`;
+                    
+                    pubmedReferences += `${index + 1}. ${article.title}. ${article.authors}. ${article.journal} (${article.year}). PubMed ID: ${article.pmid}\n`;
+                });
+                
+                pubmedContext += '\nUżyj tych badań naukowych jako podstawy dla pomysłów. Odwołuj się do konkretnych wyników badań.';
+            }
+        }
+        
+        if (loading.querySelector('p')) {
+            loading.querySelector('p').textContent = 'Generuję pomysły na podstawie badań naukowych...';
+        }
+        
+        const prompt = buildPrompt(contentType, topic, audience, tone) + pubmedContext;
         
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -254,7 +387,7 @@ async function generateIdeas() {
                 messages: [
                     {
                         role: 'system',
-                        content: 'Jesteś pomocnym asystentem dla dietetyków, który generuje kreatywne pomysły na treści.'
+                        content: 'Jesteś pomocnym asystentem dla dietetyków, który generuje kreatywne pomysły na treści oparte na aktualnych badaniach naukowych.'
                     },
                     {
                         role: 'user',
@@ -262,7 +395,7 @@ async function generateIdeas() {
                     }
                 ],
                 temperature: 0.8,
-                max_tokens: 1000
+                max_tokens: 1500
             })
         });
 
@@ -271,7 +404,17 @@ async function generateIdeas() {
         }
 
         const data = await response.json();
-        const ideas = data.choices[0].message.content;
+        let ideas = data.choices[0].message.content;
+        
+        // Dodaj referencje do wyników
+        if (pubmedReferences) {
+            ideas += '\n\n' + '─'.repeat(50) + '\n' + pubmedReferences;
+        }
+
+        // Zapisz pomysły do późniejszego użycia
+        window.lastGeneratedIdeas = ideas;
+        window.lastContentType = contentType;
+        window.lastTopic = topic;
 
         resultsContent.textContent = ideas;
         results.classList.remove('hidden');
@@ -283,7 +426,7 @@ async function generateIdeas() {
     }
 }
 
-function generatePrompt() {
+async function generatePrompt() {
     console.log('generatePrompt wywołane');
     
     try {
@@ -291,6 +434,7 @@ function generatePrompt() {
         const topicInput = document.getElementById('prompt-topic');
         const audience = document.getElementById('prompt-audience');
         const tone = document.getElementById('prompt-tone');
+        const usePubMed = document.getElementById('prompt-use-pubmed')?.checked ?? true;
 
         if (!contentType || !topicInput || !audience || !tone) {
             throw new Error('Nie znaleziono wszystkich pól formularza');
@@ -301,7 +445,7 @@ function generatePrompt() {
         const audienceValue = audience.value;
         const toneValue = tone.value;
 
-        console.log('Wartości:', { contentTypeValue, topic, audienceValue, toneValue });
+        console.log('Wartości:', { contentTypeValue, topic, audienceValue, toneValue, usePubMed });
 
         if (!topic || !topic.trim()) {
             alert('⚠️ Proszę wpisać temat!');
@@ -309,7 +453,43 @@ function generatePrompt() {
             return;
         }
 
-        const prompt = buildPrompt(contentTypeValue, topic, audienceValue, toneValue);
+        let prompt = buildPrompt(contentTypeValue, topic, audienceValue, toneValue);
+        let pubmedReferences = '';
+        
+        // Wyszukaj artykuły w PubMed jeśli zaznaczone
+        if (usePubMed) {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.classList.remove('hidden');
+                loading.querySelector('p').textContent = 'Wyszukuję artykuły naukowe z PubMed...';
+            }
+            
+            const articles = await searchPubMed(topic);
+            
+            if (loading) {
+                loading.classList.add('hidden');
+            }
+            
+            if (articles && articles.length > 0) {
+                prompt += '\n\nAktualne badania naukowe z PubMed:\n';
+                pubmedReferences = '\n\nŹródła naukowe do dodania do promptu:\n';
+                
+                articles.forEach((article, index) => {
+                    prompt += `${index + 1}. ${article.title}\n`;
+                    if (article.abstract) {
+                        prompt += `   Streszczenie: ${article.abstract.substring(0, 200)}...\n`;
+                    }
+                    prompt += `   Autorzy: ${article.authors}\n`;
+                    prompt += `   Czasopismo: ${article.journal} (${article.year})\n\n`;
+                    
+                    pubmedReferences += `${index + 1}. ${article.title}. ${article.authors}. ${article.journal} (${article.year}). PubMed ID: ${article.pmid}\n`;
+                });
+                
+                prompt += '\nUżyj tych badań naukowych jako podstawy dla pomysłów. Odwołuj się do konkretnych wyników badań.';
+                prompt += pubmedReferences;
+            }
+        }
+        
         const promptResult = document.getElementById('prompt-result');
         const promptText = document.getElementById('prompt-text');
 
@@ -417,12 +597,67 @@ function cancelGeneration() {
 }
 
 // Nowa funkcja generowania kreatywnych obrazów
+// Funkcja obsługi uploadu zdjęcia
+function handleImageUpload(file) {
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        alert('⚠️ Proszę wybrać plik obrazu!');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const imageResult = document.getElementById('image-result');
+        const generatedImage = document.getElementById('generated-image');
+        
+        if (imageResult && generatedImage) {
+            generatedImage.src = e.target.result;
+            imageResult.classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('prompt-result').classList.add('hidden');
+            
+            // Zapisz obraz do późniejszego użycia
+            window.uploadedImageData = e.target.result;
+            
+            setTimeout(() => {
+                imageResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
 async function generateCreativeImage() {
     if (isGenerating) {
         console.log('Generowanie już w toku, pomijam...');
         return;
     }
     
+    const imageSource = document.querySelector('input[name="image-source"]:checked')?.value || 'generate';
+    
+    // Jeśli użytkownik wgrał zdjęcie
+    if (imageSource === 'upload') {
+        const uploadedFile = document.getElementById('image-upload').files[0];
+        if (!uploadedFile) {
+            alert('⚠️ Proszę wybrać zdjęcie do wgrania!');
+            return;
+        }
+        
+        const generateSimilar = document.getElementById('generate-similar')?.checked;
+        const addTextOverlay = document.getElementById('add-text-overlay').checked;
+        const overlayText = document.getElementById('overlay-text').value;
+        
+        if (generateSimilar && (!apiKey || !apiKey.trim())) {
+            alert('⚠️ Generowanie podobnego obrazu wymaga klucza API OpenAI.');
+            return;
+        }
+        
+        await processUploadedImage(uploadedFile, generateSimilar, addTextOverlay, overlayText);
+        return;
+    }
+    
+    // Standardowe generowanie nowego obrazu
     if (!apiKey || !apiKey.trim()) {
         alert('⚠️ Ta funkcja wymaga klucza API OpenAI. Wprowadź klucz w sekcji "Tryb API".');
         return;
@@ -637,6 +872,150 @@ async function addTextOverlayToImage(imageUrl, text, imageType) {
         img.onerror = () => reject(new Error('Nie udało się załadować obrazu'));
         img.src = imageUrl;
     });
+}
+
+async function processUploadedImage(file, generateSimilar, addTextOverlay, overlayText) {
+    isGenerating = true;
+    const loading = document.getElementById('loading');
+    const generateBtn = document.getElementById('generate-image-btn');
+    
+    if (generateBtn) {
+        generateBtn.style.opacity = '0.7';
+        generateBtn.disabled = true;
+        generateBtn.textContent = 'Przetwarzam...';
+    }
+    
+    try {
+        // Najpierw wczytaj zdjęcie
+        const reader = new FileReader();
+        const imageDataUrl = await new Promise((resolve, reject) => {
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+        
+        let finalImageUrl = imageDataUrl;
+        
+        // Jeśli użytkownik chce wygenerować podobny obraz AI
+        if (generateSimilar) {
+            if (loading) {
+                loading.classList.remove('hidden');
+                const loadingText = loading.querySelector('p');
+                if (loadingText) {
+                    loadingText.textContent = 'Analizuję zdjęcie i generuję podobny obraz AI...';
+                }
+            }
+            
+            // Użyj GPT Vision do opisania zdjęcia, a potem wygeneruj podobny obraz
+            const description = await describeImageWithGPT(imageDataUrl);
+            console.log('Opis zdjęcia:', description);
+            
+            const imageType = document.getElementById('image-type')?.value || 'post';
+            const styleDesc = document.getElementById('image-style-desc')?.value || 'photography';
+            
+            const sizes = {
+                'post': '1024x1024',
+                'story': '1024x1792',
+                'banner': '1792x1024'
+            };
+            const dalleSize = sizes[imageType] || sizes['post'];
+            
+            const stylePrompts = {
+                'photography': 'professional photography, high quality',
+                'lifestyle': 'lifestyle photography, natural',
+                'studio': 'studio photography',
+                'outdoor': 'outdoor photography',
+                'minimalist': 'minimalist style',
+                'vibrant': 'vibrant colors'
+            };
+            const stylePrompt = stylePrompts[styleDesc] || stylePrompts['photography'];
+            
+            const dallePrompt = `Create a similar image showing: ${description}. Style: ${stylePrompt}, high resolution, detailed. MANDATORY: All text, signs, labels, banners, posters, or any written words visible in the image MUST be in Polish language (język polski). Do not use English text.`;
+            
+            finalImageUrl = await generateImageWithDalleCreative(dallePrompt, dalleSize);
+            
+            if (loading) {
+                loading.classList.add('hidden');
+            }
+        }
+        
+        // Jeśli trzeba dodać tekst overlay
+        if (addTextOverlay && overlayText && overlayText.trim()) {
+            finalImageUrl = await addTextOverlayToImage(finalImageUrl, overlayText, 'post');
+        }
+        
+        // Pokaż wynik
+        const imageResult = document.getElementById('image-result');
+        const generatedImage = document.getElementById('generated-image');
+        
+        if (imageResult && generatedImage) {
+            generatedImage.src = finalImageUrl;
+            imageResult.classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('prompt-result').classList.add('hidden');
+            
+            setTimeout(() => {
+                imageResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+        
+    } catch (error) {
+        console.error('Błąd przetwarzania zdjęcia:', error);
+        alert('Błąd: ' + error.message);
+    } finally {
+        isGenerating = false;
+        if (loading) {
+            loading.classList.add('hidden');
+        }
+        if (generateBtn) {
+            generateBtn.style.opacity = '1';
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generuj Obraz';
+        }
+    }
+}
+
+async function describeImageWithGPT(imageDataUrl) {
+    if (!apiKey || !apiKey.trim()) {
+        throw new Error('Brak klucza API');
+    }
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: 'Opisz szczegółowo to zdjęcie w kontekście dietetyki i zdrowego stylu życia. Opisz co widzisz, kolory, kompozycję, nastrój, osoby, przedmioty. Opisz po polsku, ale w sposób który można użyć do wygenerowania podobnego obrazu przez DALL-E.'
+                        },
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: imageDataUrl
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens: 300
+        })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error('Błąd GPT Vision: ' + (errorData.error?.message || response.statusText));
+    }
+    
+    const data = await response.json();
+    return data.choices[0].message.content;
 }
 
 function downloadGeneratedImage() {
