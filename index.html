@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Pomysłów - Posty Dietetyczne</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🥗 Generator Pomysłów na Posty Dietetyczne</h1>
+            <p class="subtitle">Pomoc w tworzeniu treści dla dietetyków</p>
+        </header>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="api">Tryb API (z kluczem OpenAI)</button>
+            <button class="mode-btn" data-mode="prompt">Tryb Prompt (kopiuj do GPT)</button>
+            <button class="mode-btn" data-mode="image">Generuj Obrazy</button>
+        </div>
+
+        <!-- Tryb API -->
+        <div id="api-mode" class="mode-content active">
+            <div class="input-section">
+                <label for="api-key">Klucz API OpenAI (opcjonalnie - zostaw puste dla trybu prompt):</label>
+                <input type="password" id="api-key" placeholder="sk-...">
+                <small>Klucz jest przechowywany tylko lokalnie w przeglądarce</small>
+            </div>
+
+            <div class="input-section">
+                <label for="content-type">Typ treści:</label>
+                <select id="content-type">
+                    <option value="post">Post na social media</option>
+                    <option value="newsletter">Newsletter</option>
+                    <option value="blog">Artykuł blogowy</option>
+                    <option value="reel">Reel/Video</option>
+                </select>
+            </div>
+
+            <div class="input-section">
+                <label for="topic">Temat lub kategoria:</label>
+                <input type="text" id="topic" placeholder="np. zdrowe śniadania, odchudzanie, weganizm">
+            </div>
+
+            <div class="input-section">
+                <label for="target-audience">Grupa docelowa:</label>
+                <select id="target-audience">
+                    <option value="ogólna">Ogólna</option>
+                    <option value="kobiety w ciąży">Kobiety w ciąży</option>
+                    <option value="sportowcy">Sportowcy</option>
+                    <option value="osoby starsze">Osoby starsze</option>
+                    <option value="dzieci">Dzieci</option>
+                    <option value="diabetycy">Diabetycy</option>
+                    <option value="weganie">Weganie/wegetarianie</option>
+                </select>
+            </div>
+
+            <div class="input-section">
+                <label for="tone">Ton wypowiedzi:</label>
+                <select id="tone">
+                    <option value="profesjonalny">Profesjonalny</option>
+                    <option value="przyjazny">Przyjazny</option>
+                    <option value="motywujący">Motywujący</option>
+                    <option value="edukacyjny">Edukacyjny</option>
+                    <option value="luźny">Luźny</option>
+                </select>
+            </div>
+
+            <button id="generate-btn" class="generate-btn">Generuj Pomysły</button>
+        </div>
+
+        <!-- Tryb Prompt -->
+        <div id="prompt-mode" class="mode-content">
+            <div class="input-section">
+                <label for="prompt-content-type">Typ treści:</label>
+                <select id="prompt-content-type">
+                    <option value="post">Post na social media</option>
+                    <option value="newsletter">Newsletter</option>
+                    <option value="blog">Artykuł blogowy</option>
+                    <option value="reel">Reel/Video</option>
+                </select>
+            </div>
+
+            <div class="input-section">
+                <label for="prompt-topic">Temat lub kategoria:</label>
+                <input type="text" id="prompt-topic" placeholder="np. zdrowe śniadania, odchudzanie, weganizm">
+            </div>
+
+            <div class="input-section">
+                <label for="prompt-audience">Grupa docelowa:</label>
+                <select id="prompt-audience">
+                    <option value="ogólna">Ogólna</option>
+                    <option value="kobiety w ciąży">Kobiety w ciąży</option>
+                    <option value="sportowcy">Sportowcy</option>
+                    <option value="osoby starsze">Osoby starsze</option>
+                    <option value="dzieci">Dzieci</option>
+                    <option value="diabetycy">Diabetycy</option>
+                    <option value="weganie">Weganie/wegetarianie</option>
+                </select>
+            </div>
+
+            <div class="input-section">
+                <label for="prompt-tone">Ton wypowiedzi:</label>
+                <select id="prompt-tone">
+                    <option value="profesjonalny">Profesjonalny</option>
+                    <option value="przyjazny">Przyjazny</option>
+                    <option value="motywujący">Motywujący</option>
+                    <option value="edukacyjny">Edukacyjny</option>
+                    <option value="luźny">Luźny</option>
+                </select>
+            </div>
+
+            <button id="generate-prompt-btn" class="generate-btn">Generuj Prompt</button>
+        </div>
+
+        <!-- Tryb Generowania Obrazów -->
+        <div id="image-mode" class="mode-content">
+            <div class="input-section">
+                <label for="image-description">Opis obrazu (co chcesz zobaczyć):</label>
+                <textarea id="image-description" rows="3" placeholder="np. szczupła kobieta ćwicząca na siłowni, profesjonalne zdjęcie, naturalne światło"></textarea>
+                <small>Opisz dokładnie, jaki obraz chcesz wygenerować. Im bardziej szczegółowy opis, tym lepszy efekt!</small>
+            </div>
+
+            <div class="input-section">
+                <label for="image-type">Rozmiar obrazu:</label>
+                <select id="image-type">
+                    <option value="post">Post Instagram/Facebook (1024x1024)</option>
+                    <option value="story">Story (1024x1792)</option>
+                    <option value="banner">Banner poziomy (1792x1024)</option>
+                </select>
+            </div>
+
+            <div class="input-section">
+                <label for="image-style-desc">Styl obrazu:</label>
+                <select id="image-style-desc">
+                    <option value="photography">Fotografia profesjonalna</option>
+                    <option value="lifestyle">Lifestyle (naturalne, codzienne)</option>
+                    <option value="studio">Studio (profesjonalne tło)</option>
+                    <option value="outdoor">Plener (na zewnątrz)</option>
+                    <option value="minimalist">Minimalistyczne</option>
+                    <option value="vibrant">Żywe kolory</option>
+                </select>
+            </div>
+
+            <div class="input-section">
+                <label>
+                    <input type="checkbox" id="add-text-overlay"> Dodaj tekst na obrazie (opcjonalnie)
+                </label>
+            </div>
+
+            <div class="input-section" id="text-overlay-section" style="display: none;">
+                <label for="overlay-text">Tekst do dodania:</label>
+                <input type="text" id="overlay-text" placeholder="np. 5 Zasad Zdrowego Odżywiania" maxlength="60">
+            </div>
+
+            <div class="input-section">
+                <small style="color: #dc3545; font-weight: 600;">⚠️ Wymaga klucza API OpenAI (DALL-E)</small>
+            </div>
+
+            <div class="cost-info" style="margin: 15px 0; padding: 15px; background: #d1ecf1; border-radius: 8px; border-left: 4px solid #0c5460;">
+                <strong>💰 Koszt:</strong> <span id="single-image-cost">$0.04</span>
+                <small style="display: block; margin-top: 5px; color: #666;">
+                    DALL-E 3 Standard: $0.04 (1024x1024) / $0.08 (większe rozmiary)
+                </small>
+            </div>
+
+            <button id="generate-image-btn" class="generate-btn">Generuj Obraz</button>
+        </div>
+
+        <!-- Wyniki -->
+        <div id="results" class="results hidden">
+            <h2>Wyniki:</h2>
+            <div id="results-content"></div>
+            <div class="results-actions">
+                <button id="copy-btn" class="copy-btn">Kopiuj do schowka</button>
+                <button id="select-ideas-btn" class="copy-btn" style="background: #28a745;">Wybierz Pomysły do Obrazów</button>
+            </div>
+        </div>
+
+        <!-- Wybór pomysłów do obrazów -->
+        <div id="ideas-selection" class="results hidden" style="margin-top: 20px;">
+            <h2>Wybierz pomysły do wygenerowania obrazów:</h2>
+            <div id="ideas-checklist" class="ideas-checklist"></div>
+            <div class="cost-info" style="margin: 15px 0; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <strong>💰 Szacowany koszt:</strong> <span id="total-cost">$0.00</span>
+                <small style="display: block; margin-top: 5px; color: #666;">
+                    DALL-E 3: $0.04 za obraz (1024x1024) lub $0.08 za większe rozmiary
+                </small>
+            </div>
+            <div class="results-actions">
+                <button id="generate-selected-images-btn" class="copy-btn" style="background: #28a745;">Generuj Wybrane Obrazy</button>
+                <button id="cancel-selection-btn" class="copy-btn" style="background: #6c757d;">Anuluj</button>
+            </div>
+        </div>
+
+        <!-- Prompt do skopiowania -->
+        <div id="prompt-result" class="prompt-result hidden">
+            <h2>Skopiuj ten prompt do darmowego chatu GPT:</h2>
+            <div id="prompt-text" class="prompt-text"></div>
+            <button id="copy-prompt-btn" class="copy-btn">Kopiuj Prompt</button>
+        </div>
+
+        <!-- Galeria obrazów dla pomysłów -->
+        <div id="ideas-images-gallery" class="image-result hidden">
+            <h2>Wygenerowane obrazy do pomysłów:</h2>
+            <div id="gallery-container" class="gallery-container"></div>
+            <button id="close-gallery-btn" class="copy-btn" style="background: #dc3545; margin-top: 20px;">Zamknij Galerię</button>
+        </div>
+
+        <!-- Wyniki obrazów -->
+        <div id="image-result" class="image-result hidden">
+            <h2>Wygenerowany obraz:</h2>
+            <div class="image-preview-container">
+                <img id="generated-image" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);" alt="Wygenerowany obraz">
+            </div>
+            <div class="image-actions">
+                <button id="download-image-btn" class="copy-btn">Pobierz Obraz</button>
+                <button id="regenerate-image-btn" class="copy-btn" style="background: #ff6b6b;">Generuj Ponownie</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Generuję pomysły...</p>
+            <button id="cancel-generation-btn" class="copy-btn" style="margin-top: 20px; background: #dc3545;">Anuluj</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
